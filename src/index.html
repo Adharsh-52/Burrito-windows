@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Burrito Windows</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Burrito</p>
+          <h1>Image optimizer for Windows</h1>
+        </div>
+        <button id="settingsButton" class="ghost-button" type="button">Settings</button>
+      </header>
+
+      <section class="hero">
+        <div class="hero-copy">
+          <p>Drop images on PNG or WebP to export optimized copies into an <strong>Optimized Files</strong> folder beside the originals.</p>
+        </div>
+        <button id="browseButton" class="primary-button" type="button">Browse Images</button>
+      </section>
+
+      <section id="processingCard" class="status-card hidden" aria-live="polite">
+        <div class="pulse"></div>
+        <div>
+          <p id="statusLabel" class="status-label">Processing</p>
+          <h2 id="statusTitle">Preparing files...</h2>
+          <p id="statusMessage" class="status-message"></p>
+        </div>
+      </section>
+
+      <section class="drop-grid">
+        <button class="drop-zone" data-format="png" type="button">
+          <span class="drop-format">PNG</span>
+          <span class="drop-hint">Drop images here</span>
+        </button>
+        <button class="drop-zone" data-format="webp" type="button">
+          <span class="drop-format">WebP</span>
+          <span class="drop-hint">Drop images here</span>
+        </button>
+      </section>
+
+      <section class="preview-card">
+        <div class="preview-copy">
+          <p class="eyebrow">Queue Preview</p>
+          <h2>Ready for multiple files</h2>
+          <p>Up to three image previews appear here before we process the full selection.</p>
+        </div>
+        <div id="previewStrip" class="preview-strip">
+          <div class="preview-placeholder">No files selected yet</div>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="settingsDialog" class="settings-dialog">
+      <form method="dialog" class="settings-panel">
+        <div class="settings-header">
+          <div>
+            <p class="eyebrow">Quality</p>
+            <h2>Compression settings</h2>
+          </div>
+          <button class="ghost-button" type="submit">Close</button>
+        </div>
+
+        <label class="slider-row">
+          <span>PNG Quality</span>
+          <strong id="pngValue">80</strong>
+          <input id="pngQuality" type="range" min="40" max="100" step="1" value="80" />
+        </label>
+
+        <label class="slider-row">
+          <span>WebP Quality</span>
+          <strong id="webpValue">80</strong>
+          <input id="webpQuality" type="range" min="40" max="100" step="1" value="80" />
+        </label>
+      </form>
+    </dialog>
+
+    <script src="./renderer.js"></script>
+  </body>
+</html>

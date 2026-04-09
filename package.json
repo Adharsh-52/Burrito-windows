@@ -1,0 +1,56 @@
+{
+  "name": "burrito-windows",
+  "version": "1.0.0",
+  "description": "Windows-friendly Burrito image optimizer built with Electron.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist:win": "electron-builder --win nsis"
+  },
+  "keywords": [
+    "electron",
+    "image-optimizer",
+    "png",
+    "webp",
+    "windows"
+  ],
+  "author": "",
+  "license": "MIT",
+  "build": {
+    "appId": "com.burrito.windows",
+    "productName": "Burrito Windows",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}-Setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "dependencies": {
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "electron": "^35.1.5",
+    "electron-builder": "^24.13.3"
+  }
+}
