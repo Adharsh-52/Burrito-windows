@@ -2,102 +2,147 @@ const path = require("path");
 const fs = require("fs/promises");
 const { app, BrowserWindow, ipcMain, dialog } = require("electron");
 const sharp = require("sharp");
+const os = require("os");
+const { Worker } = require("worker_threads");
+
+let mainWindow;
 
 function createWindow() {
-  const window = new BrowserWindow({
-    width: 460,
-    height: 560,
-    minWidth: 420,
-    minHeight: 520,
-    backgroundColor: "#050505",
-    title: "Burrito Windows",
+  mainWindow = new BrowserWindow({
+    width: 520,
+    height: 650,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false
+      contextIsolation: true
     }
   });
 
-  window.removeMenu();
-  window.loadFile(path.join(__dirname, "index.html"));
+  mainWindow.removeMenu();
+  mainWindow.loadFile(path.join(__dirname, "index.html"));
 }
 
-async function ensureOutputDirectory(sourcePath) {
-  const parentDirectory = path.dirname(sourcePath);
-  const outputDirectory = path.join(parentDirectory, "Optimized Files");
-  await fs.mkdir(outputDirectory, { recursive: true });
-  return outputDirectory;
+function runWorker(data) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(path.join(__dirname, "worker.js"), {
+      workerData: data
+    });
+
+    worker.on("message", resolve);
+    worker.on("error", reject);
+  });
 }
 
-async function processImage(sourcePath, format, settings) {
-  const outputDirectory = await ensureOutputDirectory(sourcePath);
-  const parsedPath = path.parse(sourcePath);
-  const outputPath = path.join(outputDirectory, `${parsedPath.name}.${format}`);
-
-  const image = sharp(sourcePath, { animated: true }).rotate();
-
-  if (format === "png") {
-    await image
-      .png({
-        quality: settings.pngQuality,
-        compressionLevel: 9,
-        effort: 10,
-        palette: true
-      })
-      .toFile(outputPath);
-  } else {
-    await image
-      .webp({
-        quality: settings.webpQuality,
-        effort: 6
-      })
-      .toFile(outputPath);
+function getOptimalFormat(filePath, format) {
+  const ext = path.extname(filePath).toLowerCase();
+  if ((ext === ".jpg" || ext === ".jpeg") && format === "png") {
+    return "webp";
   }
-
-  return outputPath;
+  return format;
 }
 
-ipcMain.handle("optimize-images", async (_event, payload) => {
+ipcMain.handle("optimize-images", async (event, payload) => {
   const { filePaths, format, settings } = payload;
 
-  if (!Array.isArray(filePaths) || filePaths.length === 0) {
-    throw new Error("No files provided.");
+  if (!filePaths?.length) {
+    throw new Error("No files provided");
   }
 
-  const outputs = [];
-  for (const filePath of filePaths) {
-    outputs.push(await processImage(filePath, format, settings));
+  const results = [];
+
+  for (let i = 0; i < filePaths.length; i++) {
+    const filePath = filePaths[i];
+
+    try {
+      const outputDirectory = path.join(
+        path.dirname(filePath),
+        "Optimized Files"
+      );
+
+      await fs.mkdir(outputDirectory, { recursive: true });
+
+      const parsed = path.parse(filePath);
+
+      // ✅ FIX: prevent jpeg → png
+      const ext = path.extname(filePath).toLowerCase();
+      const finalFormat =
+        (ext === ".jpg" || ext === ".jpeg") && format === "png"
+          ? "webp"
+          : format;
+
+      const outputPath = path.join(
+        outputDirectory,
+        `${parsed.name}.${finalFormat}`
+      );
+
+      const inputStat = await fs.stat(filePath);
+
+      let image = sharp(filePath).rotate();
+
+      image = image.resize({
+        width: 1920,
+        withoutEnlargement: true
+      });
+
+      if (finalFormat === "png") {
+        await image.png({
+          quality: settings.pngQuality,
+          compressionLevel: 9,
+          palette: true
+        }).toFile(outputPath);
+      } else {
+        await image.webp({
+          quality: settings.webpQuality,
+          effort: 6
+        }).toFile(outputPath);
+      }
+
+      const outputStat = await fs.stat(outputPath);
+
+      results.push({
+        input: filePath,
+        output: outputPath,
+        before: inputStat.size,
+        after: outputStat.size
+      });
+
+      // ✅ progress update
+      event.sender.send("optimize-progress", {
+        current: i + 1,
+        total: filePaths.length,
+        file: path.basename(filePath),
+        before: inputStat.size,
+        after: outputStat.size
+      });
+
+    } catch (err) {
+      console.error("Error processing:", filePath, err);
+    }
   }
 
-  return outputs;
+  return results;
 });
 
 ipcMain.handle("pick-images", async () => {
   const result = await dialog.showOpenDialog({
-    properties: ["openFile", "multiSelections"],
-    filters: [
-      {
-        name: "Images",
-        extensions: ["png", "jpg", "jpeg", "webp", "gif", "tif", "tiff", "bmp", "avif"]
-      }
-    ]
+    properties: ["openFile", "multiSelections", "openDirectory"]
   });
 
-  return result.canceled ? [] : result.filePaths;
-});
+  if (result.canceled) return [];
 
-app.whenReady().then(() => {
-  createWindow();
+  const files = [];
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+  for (const p of result.filePaths) {
+    const stat = await fs.stat(p);
+
+    if (stat.isDirectory()) {
+      const dirFiles = await fs.readdir(p);
+      dirFiles.forEach(f => files.push(path.join(p, f)));
+    } else {
+      files.push(p);
     }
-  });
+  }
+
+  return files;
 });
 
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
+app.whenReady().then(createWindow);
